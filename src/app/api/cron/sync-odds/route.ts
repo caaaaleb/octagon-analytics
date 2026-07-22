@@ -21,6 +21,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(report);
   } catch (err) {
     console.error("Odds sync failed:", err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    // Supabase throws plain PostgrestError-shaped objects, not native Error
+    // instances, so `err instanceof Error` alone would swallow the real
+    // message here.
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
+    return NextResponse.json({ error: message, raw: err }, { status: 500 });
   }
 }
