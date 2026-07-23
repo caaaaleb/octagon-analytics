@@ -61,10 +61,16 @@ export default async function FighterPage({ params }: { params: Promise<{ id: st
           <FighterAvatar size={72} />
           <div>
             <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
+              {fighter.division_rank && <span className="text-muted">#{fighter.division_rank}</span>}
               {fighter.full_name}
               {style && (
                 <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted">
                   {style}
+                </span>
+              )}
+              {fighter.p4p_rank && (
+                <span className="rounded-full border border-gold bg-gold/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gold shadow-[0_0_10px_-2px_rgba(212,167,44,0.6)]">
+                  P4P #{fighter.p4p_rank}
                 </span>
               )}
             </h1>

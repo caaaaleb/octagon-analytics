@@ -13,6 +13,8 @@ type FighterRow = FighterForPrediction & {
   draws: number;
   no_contests: number;
   sub_avg: number | null;
+  p4p_rank: number | null;
+  division_rank: number | null;
   historical_finish_rate: number | null;
   historical_finish_speed: number | null;
   historical_gets_finished_rate: number | null;
@@ -26,6 +28,8 @@ type BoutFighter = {
   losses: number;
   draws: number;
   style: FighterStyle | null;
+  p4pRank: number | null;
+  divisionRank: number | null;
   simInputs: SimulatorFighterInputs;
 };
 
@@ -76,8 +80,8 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
     .select(
       `
       id, weight_class, is_title_fight, scheduled_rounds, status,
-      fighter_a:fighter_a_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
-      fighter_b:fighter_b_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
+      fighter_a:fighter_a_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, p4p_rank, division_rank, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
+      fighter_b:fighter_b_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, p4p_rank, division_rank, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
     `
     )
     .eq("event_id", nextEvent.id)
@@ -121,6 +125,8 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
       losses: f.losses,
       draws: f.draws,
       style: classifyFighterStyle(f),
+      p4pRank: f.p4p_rank,
+      divisionRank: f.division_rank,
       simInputs: {
         finishRate: f.historical_finish_rate,
         finishSpeed: f.historical_finish_speed,

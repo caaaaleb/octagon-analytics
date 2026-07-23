@@ -21,6 +21,8 @@ export type FighterProfile = {
   td_acc: number | null;
   td_def: number | null;
   sub_avg: number | null;
+  p4p_rank: number | null;
+  division_rank: number | null;
   elo_rating: number;
 };
 
@@ -42,7 +44,7 @@ export const getFighterProfile = cache(async (id: string): Promise<FighterProfil
   const { data, error } = await supabase
     .from("fighters")
     .select(
-      "id, full_name, dob, height_cm, reach_cm, stance, weight_class, wins, losses, draws, no_contests, slpm, sapm, str_acc, str_def, td_avg, td_acc, td_def, sub_avg, elo_rating"
+      "id, full_name, dob, height_cm, reach_cm, stance, weight_class, wins, losses, draws, no_contests, slpm, sapm, str_acc, str_def, td_avg, td_acc, td_def, sub_avg, p4p_rank, division_rank, elo_rating"
     )
     .eq("id", id)
     .maybeSingle();

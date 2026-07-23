@@ -94,9 +94,25 @@ function BoutRow({ bout }: { bout: UpcomingBout }) {
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-        <Fighter id={bout.fighterA.id} name={bout.fighterA.full_name} style={bout.fighterA.style} align="left" isValue={bout.valueSide === "a"} />
+        <Fighter
+          id={bout.fighterA.id}
+          name={bout.fighterA.full_name}
+          style={bout.fighterA.style}
+          p4pRank={bout.fighterA.p4pRank}
+          divisionRank={bout.fighterA.divisionRank}
+          align="left"
+          isValue={bout.valueSide === "a"}
+        />
         <VsMark />
-        <Fighter id={bout.fighterB.id} name={bout.fighterB.full_name} style={bout.fighterB.style} align="right" isValue={bout.valueSide === "b"} />
+        <Fighter
+          id={bout.fighterB.id}
+          name={bout.fighterB.full_name}
+          style={bout.fighterB.style}
+          p4pRank={bout.fighterB.p4pRank}
+          divisionRank={bout.fighterB.divisionRank}
+          align="right"
+          isValue={bout.valueSide === "b"}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4">
@@ -159,12 +175,16 @@ function Fighter({
   id,
   name,
   style,
+  p4pRank,
+  divisionRank,
   align,
   isValue,
 }: {
   id: string;
   name: string;
   style: FighterStyle | null;
+  p4pRank: number | null;
+  divisionRank: number | null;
   align: "left" | "right";
   isValue: boolean;
 }) {
@@ -181,9 +201,17 @@ function Fighter({
         <div
           className={`text-sm font-semibold leading-tight break-words group-hover:underline sm:text-base ${isValue ? "text-good" : "text-foreground"}`}
         >
+          {divisionRank && <span className="text-muted">#{divisionRank} </span>}
           {name}
         </div>
-        {style && <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted">{style}</div>}
+        {(style || p4pRank) && (
+          <div
+            className={`mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] uppercase tracking-wide ${isLeft ? "" : "justify-end"}`}
+          >
+            {style && <span className="text-muted">{style}</span>}
+            {p4pRank && <span className="font-semibold text-gold">P4P #{p4pRank}</span>}
+          </div>
+        )}
       </div>
     </Link>
   );

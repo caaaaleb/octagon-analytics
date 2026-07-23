@@ -11,7 +11,8 @@
     "import:seed": "node scripts/import-seed-data.mjs",
     "elo:backfill": "node scripts/backfill-elo.mjs",
     "sim:backfill": "node scripts/backfill-simulator-stats.mjs",
-    "odds:sync": "node scripts/sync-odds.mjs"
+    "odds:sync": "node scripts/sync-odds.mjs",
+    "rankings:sync": "node scripts/sync-rankings.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

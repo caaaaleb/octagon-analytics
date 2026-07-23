@@ -13,6 +13,14 @@
 // name, e.g. two UFC lightweights both named "Mike Davis") are resolved by
 // preferring whoever has fought more, so repeated runs can't flip-flop
 // between them.
+//
+// All comparisons run through normalizeName first: UFC.com's rankings use
+// proper accented spelling ("Jiří Procházka", "Jéssica Andrade") and
+// sometimes a space where our historical roster has a hyphen ("Waldo
+// Cortes Acosta" vs. our "Waldo Cortes-Acosta"), while our roster (sourced
+// from UFCStats) is plain ASCII — stripping diacritics and normalizing
+// hyphens to spaces on both sides fixed 10 of 11 rankings-sync mismatches
+// in practice, leaving only genuinely new-to-our-data fighters unmatched.
 export type MatchableFighter = {
   id: string;
   full_name: string;
@@ -26,8 +34,36 @@ export type FighterMatch = { id: string; matchedVia: string };
 
 const NAME_SUFFIXES = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv"]);
 
+// Most accented Latin letters (í, č, ń, é...) decompose via NFD into a
+// plain base letter + a combining mark that can just be stripped. A few
+// don't decompose at all — they're their own atomic code point — and need
+// an explicit substitution instead (confirmed via testing: NFD-stripping
+// alone left "Jan Błachowicz" unmatched against our roster's "Jan
+// Blachowicz" until this table was added).
+const NON_DECOMPOSING_LETTERS: Record<string, string> = {
+  ł: "l",
+  đ: "d",
+  ø: "o",
+  þ: "th",
+  ð: "d",
+  æ: "ae",
+  œ: "oe",
+  ß: "ss",
+};
+const NON_DECOMPOSING_PATTERN = new RegExp(Object.keys(NON_DECOMPOSING_LETTERS).join("|"), "g");
+
+function normalizeName(fullName: string): string {
+  return fullName
+    .trim()
+    .toLowerCase()
+    .replace(NON_DECOMPOSING_PATTERN, (ch) => NON_DECOMPOSING_LETTERS[ch])
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // strip combining diacritical marks
+    .replace(/-/g, " ");
+}
+
 function nameTokens(fullName: string): { first: string; last: string } {
-  const parts = fullName.trim().toLowerCase().split(/\s+/);
+  const parts = normalizeName(fullName).split(/\s+/);
   let last = parts[parts.length - 1];
   if (NAME_SUFFIXES.has(last) && parts.length > 1) {
     parts.pop();
@@ -43,7 +79,7 @@ function totalFights(f: MatchableFighter): number {
 export function buildFighterMatcher(fighters: MatchableFighter[]): (name: string) => FighterMatch | null {
   const exactByName = new Map<string, MatchableFighter>();
   for (const f of fighters) {
-    const key = f.full_name.trim().toLowerCase();
+    const key = normalizeName(f.full_name);
     const current = exactByName.get(key);
     if (!current || totalFights(f) > totalFights(current)) exactByName.set(key, f);
   }
@@ -59,7 +95,7 @@ export function buildFighterMatcher(fighters: MatchableFighter[]): (name: string
   }
 
   return function resolveFighter(name: string): FighterMatch | null {
-    const exact = exactByName.get(name.trim().toLowerCase());
+    const exact = exactByName.get(normalizeName(name));
     if (exact) return { id: exact.id, matchedVia: "exact" };
 
     const { first, last } = nameTokens(name);
