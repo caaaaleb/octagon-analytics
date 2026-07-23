@@ -3,6 +3,7 @@ import { getModelPrediction, type FighterForPrediction } from "@/lib/predict";
 import { buildMatchupExplanation, type MatchupExplanation } from "@/lib/matchup-explanation";
 import { devig, VALUE_BET_THRESHOLD } from "@/lib/odds";
 import type { SimulatorFighterInputs } from "@/lib/simulator";
+import { classifyFighterStyle, type FighterStyle } from "@/lib/fighter-style";
 
 type FighterRow = FighterForPrediction & {
   full_name: string;
@@ -10,6 +11,8 @@ type FighterRow = FighterForPrediction & {
   wins: number;
   losses: number;
   draws: number;
+  no_contests: number;
+  sub_avg: number | null;
   historical_finish_rate: number | null;
   historical_finish_speed: number | null;
   historical_gets_finished_rate: number | null;
@@ -22,6 +25,7 @@ type BoutFighter = {
   wins: number;
   losses: number;
   draws: number;
+  style: FighterStyle | null;
   simInputs: SimulatorFighterInputs;
 };
 
@@ -72,8 +76,8 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
     .select(
       `
       id, weight_class, is_title_fight, scheduled_rounds, status,
-      fighter_a:fighter_a_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
-      fighter_b:fighter_b_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
+      fighter_a:fighter_a_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
+      fighter_b:fighter_b_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, no_contests, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, sub_avg, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
     `
     )
     .eq("event_id", nextEvent.id)
@@ -116,6 +120,7 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
       wins: f.wins,
       losses: f.losses,
       draws: f.draws,
+      style: classifyFighterStyle(f),
       simInputs: {
         finishRate: f.historical_finish_rate,
         finishSpeed: f.historical_finish_speed,

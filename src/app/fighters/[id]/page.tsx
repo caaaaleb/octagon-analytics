@@ -5,6 +5,7 @@ import { getFighterProfile, getFighterFightHistory, type FighterFightHistoryRow 
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { StatTile } from "@/components/StatTile";
 import { SiteHeader } from "@/components/SiteHeader";
+import { classifyFighterStyle } from "@/lib/fighter-style";
 
 function cmToFeetInches(cm: number): string {
   const totalInches = cm / 2.54;
@@ -49,6 +50,7 @@ export default async function FighterPage({ params }: { params: Promise<{ id: st
 
   const history = await getFighterFightHistory(id);
   const last5 = history.slice(0, 5);
+  const style = classifyFighterStyle(fighter);
 
   return (
     <>
@@ -58,7 +60,14 @@ export default async function FighterPage({ params }: { params: Promise<{ id: st
         <div className="flex flex-wrap items-center gap-4">
           <FighterAvatar size={72} />
           <div>
-            <h1 className="text-xl font-semibold">{fighter.full_name}</h1>
+            <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
+              {fighter.full_name}
+              {style && (
+                <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  {style}
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-muted">
               {fighter.weight_class ?? "Weight class unknown"} · {fighter.wins}-{fighter.losses}
               {fighter.draws ? `-${fighter.draws}` : ""}

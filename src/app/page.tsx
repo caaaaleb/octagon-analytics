@@ -4,6 +4,7 @@ import { FighterAvatar } from "@/components/FighterAvatar";
 import { BoutDetails } from "@/components/BoutDetails";
 import { StatTile } from "@/components/StatTile";
 import { SiteHeader } from "@/components/SiteHeader";
+import type { FighterStyle } from "@/lib/fighter-style";
 import modelArtifact from "@/lib/model-weights/feature-v1.json";
 
 function pct(p: number) {
@@ -93,9 +94,9 @@ function BoutRow({ bout }: { bout: UpcomingBout }) {
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-        <Fighter id={bout.fighterA.id} name={bout.fighterA.full_name} align="left" isValue={bout.valueSide === "a"} />
+        <Fighter id={bout.fighterA.id} name={bout.fighterA.full_name} style={bout.fighterA.style} align="left" isValue={bout.valueSide === "a"} />
         <VsMark />
-        <Fighter id={bout.fighterB.id} name={bout.fighterB.full_name} align="right" isValue={bout.valueSide === "b"} />
+        <Fighter id={bout.fighterB.id} name={bout.fighterB.full_name} style={bout.fighterB.style} align="right" isValue={bout.valueSide === "b"} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4">
@@ -157,11 +158,13 @@ function VsMark() {
 function Fighter({
   id,
   name,
+  style,
   align,
   isValue,
 }: {
   id: string;
   name: string;
+  style: FighterStyle | null;
   align: "left" | "right";
   isValue: boolean;
 }) {
@@ -174,10 +177,13 @@ function Fighter({
       <div className="shrink-0 transition-transform group-hover:scale-105">
         <FighterAvatar size={56} isValue={isValue} />
       </div>
-      <div
-        className={`min-w-0 text-sm font-semibold leading-tight break-words group-hover:underline sm:text-base ${isValue ? "text-good" : "text-foreground"}`}
-      >
-        {name}
+      <div className="min-w-0">
+        <div
+          className={`text-sm font-semibold leading-tight break-words group-hover:underline sm:text-base ${isValue ? "text-good" : "text-foreground"}`}
+        >
+          {name}
+        </div>
+        {style && <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted">{style}</div>}
       </div>
     </Link>
   );
