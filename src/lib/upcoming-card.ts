@@ -6,6 +6,7 @@ import type { SimulatorFighterInputs } from "@/lib/simulator";
 
 type FighterRow = FighterForPrediction & {
   full_name: string;
+  weight_class: string | null;
   wins: number;
   losses: number;
   draws: number;
@@ -71,8 +72,8 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
     .select(
       `
       id, weight_class, is_title_fight, scheduled_rounds, status,
-      fighter_a:fighter_a_id ( id, full_name, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
-      fighter_b:fighter_b_id ( id, full_name, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
+      fighter_a:fighter_a_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate ),
+      fighter_b:fighter_b_id ( id, full_name, weight_class, elo_rating, wins, losses, draws, height_cm, reach_cm, dob, stance, slpm, sapm, td_avg, td_def, historical_finish_rate, historical_finish_speed, historical_gets_finished_rate )
     `
     )
     .eq("event_id", nextEvent.id)
@@ -173,9 +174,21 @@ export async function getUpcomingCard(): Promise<UpcomingCard> {
         }))
         .sort((a, b) => a.fetchedAt.localeCompare(b.fetchedAt));
 
+      // The odds-sync API doesn't provide weight class, so most auto-created
+      // fights have a null fights.weight_class — fall back to the fighters'
+      // own weight_class (from historical UFCStats data) when both agree.
+      // If they disagree (one side moved divisions, stale data, etc.),
+      // there's no confident inference to make, so leave it null rather
+      // than guess.
+      const inferredWeightClass =
+        fight.weight_class ??
+        (fight.fighter_a.weight_class && fight.fighter_a.weight_class === fight.fighter_b.weight_class
+          ? fight.fighter_a.weight_class
+          : null);
+
       return {
         id: fight.id,
-        weight_class: fight.weight_class,
+        weight_class: inferredWeightClass,
         is_title_fight: fight.is_title_fight,
         scheduled_rounds: fight.scheduled_rounds,
         fighterA: toBoutFighter(fight.fighter_a),
