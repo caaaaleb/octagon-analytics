@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
         : typeof err === "object" && err !== null && "message" in err
           ? String((err as { message: unknown }).message)
           : String(err);
-    return NextResponse.json({ error: message, raw: err }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
