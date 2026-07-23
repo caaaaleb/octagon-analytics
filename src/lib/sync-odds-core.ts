@@ -10,28 +10,34 @@
 // this UFC-only and avoid inventing fighter data, a bout is only accepted
 // if BOTH fighters already match a row in our `fighters` table (built from
 // UFCStats history) — a promotion outside the UFC essentially never
-// matches, so this doubles as the UFC filter. Matching tries an exact name
-// first, then falls back to (first token, last suffix-stripped last token)
-// to catch name-variant mismatches (e.g. the API's "Ian Garry" against our
-// historical "Ian Machado Garry", or "Khalil Rountree" against "Khalil
-// Rountree Jr."), then falls back further to last-name-alone when it's
-// unique across the whole roster (catches legal-name-vs-known-as mismatches
-// like "Stephen Erceg" vs. our "Steve Erceg") — common surnames correctly
-// fall through to unmatched instead of guessing. Real name collisions (two
-// different UFC lightweights both named "Mike Davis") are resolved
-// deterministically by preferring whoever has fought more, so repeated runs
-// can't create two fight rows for what's really one bout.
+// matches, so this doubles as the UFC filter. Name matching (exact ->
+// variant -> last-name-only, with deterministic collision handling) is
+// shared with the rankings sync — see src/lib/fighter-name-matcher.ts.
 import { createClient } from "@supabase/supabase-js";
+import { buildFighterMatcher, type MatchableFighter } from "./fighter-name-matcher.ts";
 
 const MIN_SYNC_INTERVAL_HOURS = 3;
-const NAME_SUFFIXES = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv"]);
+
+// Guards against cross-promotion contamination: a fighter who has since
+// left the UFC for another org (PFL, Bellator, etc.) still matches our
+// historical roster, so an occasional non-UFC bout between two such
+// fighters can slip past the "both sides match our roster" filter and get
+// mistaken for a real UFC card (happened twice with retired-UFC fighters
+// booked on a same-night PFL card). A genuine UFC card has ~10+ bouts;
+// stray cross-promotion overlap only ever contributes one or two. Requiring
+// a minimum number of matched bouts before trusting a NEW event as real
+// UFC filters this out — existing events are exempt, since their
+// legitimacy was already established when first created, and a real card
+// announced early in the week with only a few bouts initially priced will
+// simply get created once enough of its bouts have odds.
+const MIN_MATCHED_BOUTS_FOR_NEW_EVENT = 3;
 
 type OddsApiOutcome = { name: string; price: number };
 type OddsApiMarket = { key: string; outcomes: OddsApiOutcome[] };
 type OddsApiBookmaker = { title: string; markets: OddsApiMarket[] };
 type OddsApiEvent = { commence_time: string; home_team: string; away_team: string; bookmakers?: OddsApiBookmaker[] };
 
-type FighterRow = { id: string; full_name: string; wins: number; losses: number; draws: number; no_contests: number };
+type FighterRow = MatchableFighter;
 type EventRow = { id: string; name: string; date: string };
 type FightRow = { id: string; event_id: string; fighter_a_id: string; fighter_b_id: string; status?: string };
 
@@ -47,17 +53,8 @@ export type OddsSyncReport = {
   skippedUnmatched: string[];
   variantMatches: string[];
   cancelledLog: string[];
+  heldForReview: string[];
 };
-
-function nameTokens(fullName: string): { first: string; last: string } {
-  const parts = fullName.trim().toLowerCase().split(/\s+/);
-  let last = parts[parts.length - 1];
-  if (NAME_SUFFIXES.has(last) && parts.length > 1) {
-    parts.pop();
-    last = parts[parts.length - 1];
-  }
-  return { first: parts[0], last };
-}
 
 export async function runOddsSync({ skipRateLimit = false }: { skipRateLimit?: boolean } = {}): Promise<OddsSyncReport> {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -78,6 +75,7 @@ export async function runOddsSync({ skipRateLimit = false }: { skipRateLimit?: b
     skippedUnmatched: [],
     variantMatches: [],
     cancelledLog: [],
+    heldForReview: [],
   };
 
   // Free-tier request cap safety net: this is the ONLY code path that ever
@@ -134,43 +132,7 @@ export async function runOddsSync({ skipRateLimit = false }: { skipRateLimit?: b
 
   const fighters = await fetchAll<FighterRow>("fighters", "id, full_name, wins, losses, draws, no_contests");
   const fighterNameById = new Map(fighters.map((f) => [f.id, f.full_name]));
-
-  function totalFights(f: FighterRow): number {
-    return f.wins + f.losses + f.draws + f.no_contests;
-  }
-  const exactByName = new Map<string, FighterRow>();
-  for (const f of fighters) {
-    const key = f.full_name.trim().toLowerCase();
-    const current = exactByName.get(key);
-    if (!current || totalFights(f) > totalFights(current)) exactByName.set(key, f);
-  }
-  const byTokens = new Map<string, FighterRow[]>();
-  const byLastName = new Map<string, FighterRow[]>();
-  for (const f of fighters) {
-    const { first, last } = nameTokens(f.full_name);
-    const key = `${first}|${last}`;
-    if (!byTokens.has(key)) byTokens.set(key, []);
-    byTokens.get(key)!.push(f);
-    if (!byLastName.has(last)) byLastName.set(last, []);
-    byLastName.get(last)!.push(f);
-  }
-
-  function resolveFighterId(name: string): { id: string; matchedVia: string } | null {
-    const exact = exactByName.get(name.trim().toLowerCase());
-    if (exact) return { id: exact.id, matchedVia: "exact" };
-
-    const { first, last } = nameTokens(name);
-    const candidates = byTokens.get(`${first}|${last}`) ?? [];
-    if (candidates.length === 1) {
-      return { id: candidates[0].id, matchedVia: `variant of "${candidates[0].full_name}"` };
-    }
-
-    const lastNameCandidates = byLastName.get(last) ?? [];
-    if (lastNameCandidates.length === 1) {
-      return { id: lastNameCandidates[0].id, matchedVia: `last-name match for "${lastNameCandidates[0].full_name}"` };
-    }
-    return null;
-  }
+  const resolveFighterId = buildFighterMatcher(fighters);
 
   const existingEvents = await fetchAll<EventRow>("events", "id, name, date");
   const existingFights = await fetchAll<FightRow>("fights", "id, event_id, fighter_a_id, fighter_b_id, status");
@@ -186,9 +148,13 @@ export async function runOddsSync({ skipRateLimit = false }: { skipRateLimit?: b
     byCommenceTime.get(ev.commence_time)!.push(ev);
   }
 
+  type ResolvedBout = { bout: OddsApiEvent; matchA: { id: string; matchedVia: string }; matchB: { id: string; matchedVia: string } };
+
   for (const [commenceTime, bouts] of byCommenceTime) {
     const date = commenceTime.slice(0, 10);
+    const eventAlreadyExists = existingEvents.some((e) => e.date === date);
 
+    const resolved: ResolvedBout[] = [];
     for (const bout of bouts) {
       const matchA = resolveFighterId(bout.home_team);
       const matchB = resolveFighterId(bout.away_team);
@@ -197,6 +163,19 @@ export async function runOddsSync({ skipRateLimit = false }: { skipRateLimit?: b
         report.skippedUnmatched.push(`${bout.home_team} vs ${bout.away_team}`);
         continue;
       }
+      resolved.push({ bout, matchA, matchB });
+    }
+
+    if (resolved.length === 0) continue;
+
+    if (!eventAlreadyExists && resolved.length < MIN_MATCHED_BOUTS_FOR_NEW_EVENT) {
+      report.heldForReview.push(
+        `${date}: only ${resolved.length} matched bout(s) — ${resolved.map((r) => `${r.bout.home_team} vs ${r.bout.away_team}`).join(", ")}`
+      );
+      continue;
+    }
+
+    for (const { bout, matchA, matchB } of resolved) {
       if (matchA.matchedVia !== "exact") report.variantMatches.push(`"${bout.home_team}" -> ${matchA.matchedVia}`);
       if (matchB.matchedVia !== "exact") report.variantMatches.push(`"${bout.away_team}" -> ${matchB.matchedVia}`);
 

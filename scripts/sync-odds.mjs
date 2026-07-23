@@ -20,6 +20,8 @@ runOddsSync({ skipRateLimit: force })
     console.log(`Fights created: ${report.fightsCreated}`);
     console.log(`Fights cancelled (opponent replaced): ${report.fightsCancelled}`);
     if (report.cancelledLog.length) console.log("  ->", report.cancelledLog.join(" | "));
+    console.log(`Held for review (too few matched bouts to trust as a new UFC card): ${report.heldForReview.length}`);
+    if (report.heldForReview.length) console.log("  ->", report.heldForReview.join(" | "));
     console.log(`Odds snapshots inserted: ${report.snapshotsInserted}`);
     console.log(`Skipped (couldn't confidently match both fighters — likely non-UFC or unlisted debut): ${report.skippedUnmatched.length}`);
     if (report.skippedUnmatched.length) console.log("  ->", report.skippedUnmatched.join(" | "));
